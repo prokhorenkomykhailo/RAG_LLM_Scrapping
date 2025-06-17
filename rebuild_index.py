@@ -9,20 +9,28 @@ from pinecone import Pinecone
 # === CONFIG ===
 PINECONE_API_KEY = os.getenv("PINECONE_API_KEY", "pcsk_rFk4H_GH6HWkbePFmQ5LyuQLMqxN5BJJiaSyhpqSTPjYwt4VKvb3xzXNtkcqWgQCYP6Hc")
 INDEX_NAME = "lg-index-gemini"
-API_KEY = os.getenv("ORCHESTRATOR_SECRET", "")  # Optional
-LAZYBUGURU_ENDPOINT = os.getenv("LAZYBUGURU_ENDPOINT", "http://localhost:7002/scrape-index")
-KNOWLEDGEBASE_ENDPOINT = os.getenv("KNOWLEDGEBASE_ENDPOINT", "http://localhost:7003/index-lg-sites")
+API_KEY = os.getenv("ORCHESTRATOR_SECRET", "")  # Optional auth token
 
-# === LOGGING ===
+LAZYBUGURU_ENDPOINT = "http://127.0.0.1:7002/scrape-index"
+KNOWLEDGEBASE_ENDPOINT = "http://127.0.0.1:7003/index-lg-sites"
+
+# === LOGGING CONFIG ===
+LOG_DIR = "logs"
+LOG_FILE = os.path.join(LOG_DIR, "rebuild_index.log")
+os.makedirs(LOG_DIR, exist_ok=True)
+
 logging.basicConfig(
     level=logging.INFO,
-    format='{"timestamp": "%(asctime)s", "severity": "%(levelname)s", "message": "%(message)s"}'
+    format='{"timestamp": "%(asctime)s", "severity": "%(levelname)s", "message": "%(message)s"}',
+    handlers=[
+        logging.StreamHandler(),  # console for GCP
+        logging.FileHandler(LOG_FILE, mode='a', encoding='utf-8')  # persistent file logging
+    ]
 )
 
 # === INIT ===
 app = FastAPI()
 pc = Pinecone(api_key=PINECONE_API_KEY)
-
 
 # === HELPERS ===
 def clear_index(index_name: str):
@@ -38,23 +46,19 @@ def clear_index(index_name: str):
         logging.error(f"Failed to clear index: {str(e)}")
         raise
 
-
-async def call_endpoint(name: str, url: str, method: str = "post") -> dict:
+async def call_endpoint(name: str, url: str) -> dict:
     try:
         async with httpx.AsyncClient(timeout=60.0) as client:
-            if method.lower() == "get":
-                response = await client.get(url)
-            else:
-                response = await client.post(url)
+            response = await client.get(url)
             response.raise_for_status()
-            logging.info(f"✅ {name} succeeded: {response.status_code}")
+            logging.info(f"✅ {name} succeeded: {response.status_code}, bytes={len(response.content)}")
             return {
                 "status": "success",
-                "data": response.json(),
-                "code": response.status_code
+                "code": response.status_code,
+                "data": response.json()
             }
     except httpx.HTTPStatusError as e:
-        logging.error(f"❌ {name} failed with status {e.response.status_code}: {e.response.text}")
+        logging.error(f"❌ {name} failed with status {e.response.status_code}: {e.response.text[:300]}")
         return {
             "status": "error",
             "code": e.response.status_code,
@@ -67,8 +71,7 @@ async def call_endpoint(name: str, url: str, method: str = "post") -> dict:
             "error": str(e)
         }
 
-
-# === ORCHESTRATOR ENDPOINT ===
+# === MAIN ORCHESTRATOR ===
 @app.post("/rebuild-index")
 async def rebuild_index(x_api_key: str = Header(default=None)):
     if API_KEY and x_api_key != API_KEY:
@@ -82,18 +85,17 @@ async def rebuild_index(x_api_key: str = Header(default=None)):
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Index clear failed: {str(e)}")
 
-    # Step 2: Wait 10 seconds
-    logging.info("⏳ Waiting 5 seconds before continuing...")
+    # Step 2: Wait before indexing
+    logging.info("⏳ Waiting 5 seconds before indexing...")
     await asyncio.sleep(5)
 
-    # Step 3: Index Lazybuguru (GET)
+    # Step 3: Lazybuguru scrape/index
     logging.info("🚀 Calling Lazybuguru scraper...")
-    lazy_result = await call_endpoint("Lazybuguru", LAZYBUGURU_ENDPOINT, method="get")
+    lazy_result = await call_endpoint("Lazybuguru", LAZYBUGURU_ENDPOINT)
 
-
-    # Step 4: Index Knowledgebase (POST)
+    # Step 4: Knowledgebase index
     logging.info("📚 Calling Knowledgebase indexer...")
-    kb_result = await call_endpoint("Knowledgebase", KNOWLEDGEBASE_ENDPOINT, method="post")
+    kb_result = await call_endpoint("Knowledgebase", KNOWLEDGEBASE_ENDPOINT)
 
     logging.info("✅ Index rebuild complete.")
 
