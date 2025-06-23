@@ -137,17 +137,18 @@ class PineconeIndexer:
 
         logging.info(f"✅ Indexed {len(chunks)} chunks")
 
-
 # === ROUTE ===
 @app.get("/scrape-index")
-async def scrape_and_index(url: str = Query(..., description="URL to scrape and index")):
+async def scrape_and_index():
     firecrawl_app = AsyncFirecrawlApp(api_key=FIRECRAWL_API_KEY)
     markdown_processor = MarkdownArticleProcessor()
     indexer = PineconeIndexer()
 
+    fixed_url = "http://lazybuguru.lt/"  
+
     try:
         response = await firecrawl_app.crawl_url(
-            url=url,
+            url=fixed_url,
             limit=25,
             scrape_options=ScrapeOptions(formats=["markdown"], onlyMainContent=True)
         )
