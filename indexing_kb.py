@@ -20,7 +20,7 @@ BATCH_SIZE = 50
 MAX_WORKERS = 8
 TEXT_CHUNK_SIZE = 1000
 TEXT_CHUNK_OVERLAP = 200
-DATA_SOURCE_URL = "https://guru-back.refactoring.dev.gggroup.media/companies/LG/LT/TOP"
+DATA_SOURCE_URL = "https://guru-back.refactoring.dev.gggroup.media/companies/LG/LT/ALL"
 
 # === ENVIRONMENT VARS (Optional for GCP secret config) ===
 PINECONE_API_KEY = os.getenv("PINECONE_API_KEY", "pcsk_rFk4H_GH6HWkbePFmQ5LyuQLMqxN5BJJiaSyhpqSTPjYwt4VKvb3xzXNtkcqWgQCYP6Hc")
