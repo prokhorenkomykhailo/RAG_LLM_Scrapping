@@ -121,7 +121,8 @@ class PineconeIndexer:
                     "url": metadata.get("og:url") or metadata.get("url"),
                     "language": metadata.get("language", "lt-LT"),
                     "published": metadata.get("article:published_time", ""),
-                    "source": "lazybuguru.lt"
+                    "source": "lazybuguru.lt",
+                    "text": item.get("text", "")
                 }
 
                 # Add a reference field for full text if needed
