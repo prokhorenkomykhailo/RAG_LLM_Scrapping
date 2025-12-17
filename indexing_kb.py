@@ -197,7 +197,7 @@ def index_lg_sites():
         for f in futures:
             try:
                 all_chunks.extend(f.result())
-            except Exception as e:
+            except Exception as e:  
                 logging.error(f"Future failed: {str(e)}")
 
     for i in range(0, len(all_chunks), BATCH_SIZE):
